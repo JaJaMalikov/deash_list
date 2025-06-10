@@ -105,6 +105,15 @@
     const nomToCategories = {};
     const scoresParCategorie = {};
     const detailsParCategorie = {};
+    const idCache = new Map();
+    const datesCache = new Map();
+
+    const parseDate = wdDate => {
+      const iso = wdDate ? wdDate.value.time.substring(1, 11) : '';
+      if (!iso) return '';
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    };
 
     async function chargerFichiers() {
       for (const [categorie, noms] of Object.entries(fichiers)) {
@@ -119,34 +128,32 @@
     }
 
     async function fetchWikidataId(nom) {
+      if (idCache.has(nom)) return idCache.get(nom);
       const url = `https://fr.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(nom)}&prop=pageprops&format=json&origin=*`;
       const res = await fetch(url);
       const data = await res.json();
       const pages = data.query.pages;
       for (const key in pages) {
         if (pages[key].pageprops && pages[key].pageprops.wikibase_item) {
-          return pages[key].pageprops.wikibase_item;
+          const id = pages[key].pageprops.wikibase_item;
+          idCache.set(nom, id);
+          return id;
         }
       }
       return null;
     }
 
     async function fetchDates(wikidataId) {
+      if (datesCache.has(wikidataId)) return datesCache.get(wikidataId);
       const url = `https://www.wikidata.org/wiki/Special:EntityData/${wikidataId}.json`;
       const res = await fetch(url);
       const data = await res.json();
       const claims = data.entities[wikidataId].claims;
-
-      function parseDate(wdDate) {
-        const iso = wdDate ? wdDate.value.time.substring(1, 11) : '';
-        if (!iso) return '';
-        const [y, m, d] = iso.split('-');
-        return `${d}/${m}/${y}`;
-      }
-
       const naissance = claims.P569 ? parseDate(claims.P569[0].mainsnak.datavalue) : '';
       const deces = claims.P570 ? parseDate(claims.P570[0].mainsnak.datavalue) : '';
-      return { naissance, deces };
+      const result = { naissance, deces };
+      datesCache.set(wikidataId, result);
+      return result;
     }
 
     function calculerAge(naissance, deces = null) {
@@ -206,9 +213,11 @@
       const lignes = await Promise.all(
         Object.entries(personnes).map(([nom, cats]) => traiterNom(nom, cats))
       );
+      const fragment = document.createDocumentFragment();
       for (const ligne of lignes) {
-        tbody.appendChild(ligne);
+        fragment.appendChild(ligne);
       }
+      tbody.appendChild(fragment);
       document.getElementById('overlay').classList.add('hidden');
       afficherResume();
     }
@@ -219,10 +228,8 @@
       const trie = Object.entries(scoresParCategorie).sort((a, b) => b[1] - a[1]);
       let position = 1;
       let dernierScore = null;
-      let decalage = 0;
       trie.forEach(([cat, total], index) => {
         if (total !== dernierScore) position = index + 1;
-        else decalage++;
         const span = document.createElement('span');
         span.className = 'resume-item';
         span.title = detailsParCategorie[cat].join('\n');
