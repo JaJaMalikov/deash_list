@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Wesh, t'es mort ?</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .loader {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #3498db;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .hidden {
+      display: none;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: white;
+      margin-top: 1em;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #e0e0e0;
+    }
+    .vivant {
+      color: green;
+      font-weight: bold;
+    }
+    .decede {
+      color: red;
+      font-weight: bold;
+    }
+    .erreur {
+      color: orange;
+    }
+    .resume {
+      margin-bottom: 1em;
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+    .resume-item {
+      margin: 4px 0;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay" class="overlay">
+    <div class="loader"></div>
+  </div>
+  <h1>Classement provisoire</h1>
+  <h3>d'après les résultats de vérification via Wikidata</h3>
+  <div class="resume" id="resume"></div>
+  <table id="resultats">
+    <thead>
+      <tr>
+        <th>Nom</th>
+        <th>Statut</th>
+        <th>Date naissance</th>
+        <th>Date décès</th>
+        <th>Âge</th>
+        <th>Présent dans</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const fichiers = {
+      "Audrey": ["Florent Pagny", "Renaud", "Émilie Dequenne", "Jill St John", "Michel Drucker", "Bruce Willis", "Morgan Freeman", "Clint Eastwood", "Joe Biden", "Harvey Weinstein", "Susie Morgenstern", "Michel Polnareff", "Isabelle Aubret", "Catherine Middleton", "Dick Van Dyke", "Akihito", "Marthe Villalonga", "Marcia Cross", "Charles III (roi du Royaume-Uni)", "Buzz Aldrin", "Yoko Ono", "John Williams (compositeur)", "Hugues Aufray", "Jean-Pierre Foucault", "Line Renaud"],
+      "Bidochon": ["Michel Drucker", "Édouard Balladur", "Tom Baker (acteur)", "Benyamin Netanyahou", "Florent Pagny", "Keith Richards", "Roger Waters", "Michael J. Fox", "Charles III (roi du Royaume-Uni)", "Bruce Willis", "Véronique Sanson", "Patrick Sébastien", "Donald Trump", "François (pape)", "Ozzy Osbourne", "Tim Curry", "José Mujica", "James Van Der Beek", "Dave Coulier", "Phil Collins", "Joe Biden", "Mel Brooks", "Richard O'Brien (acteur)", "Miriam Margolyes", "Michael Schumacher"],
+      "JaJa": ["Mel Brooks", "Donald Trump", "Elon Musk", "Emmanuel Macron", "Benyamin Netanyahou", "Joe Biden", "Vladimir Poutine", "Paul Biya", "Clint Eastwood", "Al Pacino", "Robert De Niro", "Brigitte Bardot", "Ozzy Osbourne", "Bob Dylan", "Mick Jagger", "Paul McCartney", "Céline Dion", "Willie Nelson", "Yoko Ono", "Salman Rushdie", "Buzz Aldrin", "Gérald Darmanin", "Charles III (roi du Royaume-Uni)", "Gérard Larcher", "Michel Sardou"],
+      "Maman": ["Line Renaud", "Eddy Mitchell", "Donald Trump", "François (pape)", "Joe Biden", "Michael J. Fox", "Angelina Jolie", "Catherine Deneuve", "Dominique Strauss-Kahn", "Martine Aubry", "Charles III (roi du Royaume-Uni)", "Jean Reno", "Tenzin Gyatso", "Vladimir Poutine", "Lionel Jospin", "Salvatore Adamo", "Enrico Macias", "Jacques Dutronc", "Alain Souchon", "Renaud", "Yoko Ono", "Petula Clark", "Brigitte Bardot", "Asma al-Assad", "Jean-Louis Aubert"]
+    };
+
+    const nomToCategories = {};
+    const scoresParCategorie = {};
+    const detailsParCategorie = {};
+
+    async function chargerFichiers() {
+      for (const [categorie, noms] of Object.entries(fichiers)) {
+        scoresParCategorie[categorie] = 0;
+        detailsParCategorie[categorie] = [];
+        for (const nom of noms) {
+          if (!nomToCategories[nom]) nomToCategories[nom] = new Set();
+          nomToCategories[nom].add(categorie);
+        }
+      }
+      await traiterTous(nomToCategories);
+    }
+
+    async function fetchWikidataId(nom) {
+      const url = `https://fr.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(nom)}&prop=pageprops&format=json&origin=*`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const pages = data.query.pages;
+      for (const key in pages) {
+        if (pages[key].pageprops && pages[key].pageprops.wikibase_item) {
+          return pages[key].pageprops.wikibase_item;
+        }
+      }
+      return null;
+    }
+
+    async function fetchDates(wikidataId) {
+      const url = `https://www.wikidata.org/wiki/Special:EntityData/${wikidataId}.json`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const claims = data.entities[wikidataId].claims;
+
+      function parseDate(wdDate) {
+        const iso = wdDate ? wdDate.value.time.substring(1, 11) : '';
+        if (!iso) return '';
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+      }
+
+      const naissance = claims.P569 ? parseDate(claims.P569[0].mainsnak.datavalue) : '';
+      const deces = claims.P570 ? parseDate(claims.P570[0].mainsnak.datavalue) : '';
+      return { naissance, deces };
+    }
+
+    function calculerAge(naissance, deces = null) {
+      const [d1, m1, y1] = naissance.split('/');
+      const n = new Date(`${y1}-${m1}-${d1}`);
+      const d = deces ? new Date(`${deces.split('/').reverse().join('-')}`) : new Date();
+      return d.getFullYear() - n.getFullYear() - (d < new Date(d.getFullYear(), n.getMonth(), n.getDate()) ? 1 : 0);
+    }
+
+    function calculerValeur(nom, age, categories, estDecede) {
+      if (!estDecede) return 0;
+      let valeur = age >= 90 ? 5 : (100 - age);
+      const nbCat = categories.size;
+      const valeurTotale = valeur + (nbCat === 1 ? 10 : 0);
+      for (const cat of categories) {
+        scoresParCategorie[cat] += valeur;
+        if (nbCat === 1) scoresParCategorie[cat] += 10;
+        detailsParCategorie[cat].push(`${nom} (${valeur}${nbCat === 1 ? ' +10' : ''})`);
+      }
+      return valeurTotale;
+    }
+
+    async function traiterNom(nom, categories) {
+      const ligne = document.createElement('tr');
+      const id = await fetchWikidataId(nom);
+      if (!id) {
+        ligne.innerHTML = `<td>${nom}</td><td class="erreur">❓ ID introuvable</td><td colspan="4"></td>`;
+        return ligne;
+      }
+
+      try {
+        const { naissance, deces } = await fetchDates(id);
+        if (!naissance) {
+          ligne.innerHTML = `<td>${nom}</td><td class="erreur">❓ Naissance manquante</td><td colspan="4"></td>`;
+        } else {
+          const age = calculerAge(naissance, deces);
+          const estDecede = !!deces;
+          calculerValeur(nom, age, categories, estDecede);
+          const statut = estDecede ? `<span class='decede'>Décédé</span>` : `<span class='vivant'>Vivant</span>`;
+          ligne.innerHTML = `
+            <td>${nom}</td>
+            <td>${statut}</td>
+            <td>${naissance}</td>
+            <td>${deces}</td>
+            <td>${age}</td>
+            <td>${Array.from(categories).join(', ')}</td>`;
+        }
+      } catch (e) {
+        ligne.innerHTML = `<td>${nom}</td><td class="erreur">⚠️ Erreur : ${e.message}</td><td colspan="4"></td>`;
+      }
+      return ligne;
+    }
+
+    async function traiterTous(personnes) {
+      const tbody = document.querySelector('#resultats tbody');
+      tbody.innerHTML = '';
+      const lignes = await Promise.all(
+        Object.entries(personnes).map(([nom, cats]) => traiterNom(nom, cats))
+      );
+      for (const ligne of lignes) {
+        tbody.appendChild(ligne);
+      }
+      document.getElementById('overlay').classList.add('hidden');
+      afficherResume();
+    }
+
+    function afficherResume() {
+      const div = document.getElementById('resume');
+      div.innerHTML = '';
+      const trie = Object.entries(scoresParCategorie).sort((a, b) => b[1] - a[1]);
+      let position = 1;
+      let dernierScore = null;
+      let decalage = 0;
+      trie.forEach(([cat, total], index) => {
+        if (total !== dernierScore) position = index + 1;
+        else decalage++;
+        const span = document.createElement('span');
+        span.className = 'resume-item';
+        span.title = detailsParCategorie[cat].join('\n');
+        span.textContent = `${position}ᵉ - ${cat} : ${total}`;
+        div.appendChild(span);
+        dernierScore = total;
+      });
+    }
+
+    chargerFichiers();
+  </script>
+</body>
+</html>
+
