@@ -2,93 +2,45 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Wesh, t'es mort ?</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wesh, t'es mort ? — Ultimate</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      padding: 20px;
-    }
-    h1 {
-      color: #333;
-    }
-    .overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255, 255, 255, 0.85);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-    .loader {
-      border: 8px solid #f3f3f3;
-      border-top: 8px solid #3498db;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .hidden {
-      display: none;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      background: white;
-      margin-top: 1em;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background-color: #e0e0e0;
-    }
-    .vivant {
-      color: green;
-      font-weight: bold;
-    }
-    .decede {
-      color: red;
-      font-weight: bold;
-    }
-    .erreur {
-      color: orange;
-    }
-    .resume {
-      margin-bottom: 1em;
-      background: #fff;
-      padding: 10px;
-      border: 1px solid #ccc;
-    }
-    .resume-item {
-      margin: 4px 0;
-      display: block;
-    }
+    body { font-family: Arial, sans-serif; background:#f5f5f5; padding:20px; }
+    h1 { color:#333; margin:0 0 .25rem; }
+    .overlay { position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .loader { border:8px solid #f3f3f3; border-top:8px solid #3498db; border-radius:50%; width:60px; height:60px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+    .hidden { display:none; }
+    .toolbar { display:flex; gap:.5rem; align-items:center; margin:.25rem 0 1rem; }
+    .resume { margin-bottom:1rem; background:#fff; padding:10px; border:1px solid #ccc; }
+    .resume-item { margin:4px 0; display:block; }
+    table { border-collapse:collapse; width:100%; background:#fff; }
+    th, td { border:1px solid #ccc; padding:10px; text-align:left; }
+    th { background:#e0e0e0; cursor:pointer; user-select:none; }
+    th.sort-asc::after { content:" ↑"; }
+    th.sort-desc::after { content:" ↓"; }
+    .vivant { color:green; font-weight:bold; }
+    .decede { color:red; font-weight:bold; }
+    .erreur { color:orange; }
   </style>
 </head>
 <body>
-  <div id="overlay" class="overlay">
-    <div class="loader"></div>
-  </div>
+  <div id="overlay" class="overlay"><div class="loader"></div></div>
   <h1>Classement provisoire</h1>
   <h3>d'après les résultats de vérification via Wikidata</h3>
-  <div class="resume" id="resume"></div>
+  <div class="toolbar">
+    <button id="refresh">Rafraîchir</button>
+  </div>
+  <div id="resume" class="resume"></div>
   <table id="resultats">
     <thead>
       <tr>
-        <th>Nom</th>
-        <th>Statut</th>
-        <th>Date naissance</th>
-        <th>Date décès</th>
-        <th>Âge</th>
-        <th>Présent dans</th>
+        <th data-key="nom">Nom</th>
+        <th data-key="statut">Statut</th>
+        <th data-key="naissance">Date naissance</th>
+        <th data-key="deces">Date décès</th>
+        <th data-key="age" style="width:90px">Âge</th>
+        <th data-key="cats">Présent dans</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -96,10 +48,10 @@
 
   <script>
     const fichiers = {
-      "Audrey": ["Florent Pagny", "Renaud", "Émilie Dequenne", "Jill St John", "Michel Drucker", "Bruce Willis", "Morgan Freeman", "Clint Eastwood", "Joe Biden", "Harvey Weinstein", "Susie Morgenstern", "Michel Polnareff", "Isabelle Aubret", "Catherine Middleton", "Dick Van Dyke", "Akihito", "Marthe Villalonga", "Marcia Cross", "Charles III (roi du Royaume-Uni)", "Buzz Aldrin", "Yoko Ono", "John Williams (compositeur)", "Hugues Aufray", "Jean-Pierre Foucault", "Line Renaud"],
-      "Bidochon": ["Michel Drucker", "Édouard Balladur", "Tom Baker (acteur)", "Benyamin Netanyahou", "Florent Pagny", "Keith Richards", "Roger Waters", "Michael J. Fox", "Charles III (roi du Royaume-Uni)", "Bruce Willis", "Véronique Sanson", "Patrick Sébastien", "Donald Trump", "François (pape)", "Ozzy Osbourne", "Tim Curry", "José Mujica", "James Van Der Beek", "Dave Coulier", "Phil Collins", "Joe Biden", "Mel Brooks", "Richard O'Brien (acteur)", "Miriam Margolyes", "Michael Schumacher"],
-      "JaJa": ["Mel Brooks", "Donald Trump", "Elon Musk", "Emmanuel Macron", "Benyamin Netanyahou", "Joe Biden", "Vladimir Poutine", "Paul Biya", "Clint Eastwood", "Al Pacino", "Robert De Niro", "Brigitte Bardot", "Ozzy Osbourne", "Bob Dylan", "Mick Jagger", "Paul McCartney", "Céline Dion", "Willie Nelson", "Yoko Ono", "Salman Rushdie", "Buzz Aldrin", "Gérald Darmanin", "Charles III (roi du Royaume-Uni)", "Gérard Larcher", "Michel Sardou"],
-      "Maman": ["Line Renaud", "Eddy Mitchell", "Donald Trump", "François (pape)", "Joe Biden", "Michael J. Fox", "Angelina Jolie", "Catherine Deneuve", "Dominique Strauss-Kahn", "Martine Aubry", "Charles III (roi du Royaume-Uni)", "Jean Reno", "Tenzin Gyatso", "Vladimir Poutine", "Lionel Jospin", "Salvatore Adamo", "Enrico Macias", "Jacques Dutronc", "Alain Souchon", "Renaud", "Yoko Ono", "Petula Clark", "Brigitte Bardot", "Asma al-Assad", "Jean-Louis Aubert"]
+      "Audrey":["Florent Pagny","Renaud","Émilie Dequenne","Jill St John","Michel Drucker","Bruce Willis","Morgan Freeman","Clint Eastwood","Joe Biden","Harvey Weinstein","Susie Morgenstern","Michel Polnareff","Isabelle Aubret","Catherine Middleton","Dick Van Dyke","Akihito","Marthe Villalonga","Marcia Cross","Charles III (roi du Royaume-Uni)","Buzz Aldrin","Yoko Ono","John Williams (compositeur)","Hugues Aufray","Jean-Pierre Foucault","Line Renaud"],
+      "Bidochon":["Michel Drucker","Édouard Balladur","Tom Baker (acteur)","Benyamin Netanyahou","Florent Pagny","Keith Richards","Roger Waters","Michael J. Fox","Charles III (roi du Royaume-Uni)","Bruce Willis","Véronique Sanson","Patrick Sébastien","Donald Trump","François (pape)","Ozzy Osbourne","Tim Curry","José Mujica","James Van Der Beek","Dave Coulier","Phil Collins","Joe Biden","Mel Brooks","Richard O'Brien (acteur)","Miriam Margolyes","Michael Schumacher"],
+      "JaJa":["Mel Brooks","Donald Trump","Elon Musk","Emmanuel Macron","Benyamin Netanyahou","Joe Biden","Vladimir Poutine","Paul Biya","Clint Eastwood","Al Pacino","Robert De Niro","Brigitte Bardot","Ozzy Osbourne","Bob Dylan","Mick Jagger","Paul McCartney","Céline Dion","Willie Nelson","Yoko Ono","Salman Rushdie","Buzz Aldrin","Gérald Darmanin","Charles III (roi du Royaume-Uni)","Gérard Larcher","Michel Sardou"],
+      "Maman":["Line Renaud","Eddy Mitchell","Donald Trump","François (pape)","Joe Biden","Michael J. Fox","Angelina Jolie","Catherine Deneuve","Dominique Strauss-Kahn","Martine Aubry","Charles III (roi du Royaume-Uni)","Jean Reno","Tenzin Gyatso","Vladimir Poutine","Lionel Jospin","Salvatore Adamo","Enrico Macias","Jacques Dutronc","Alain Souchon","Renaud","Yoko Ono","Petula Clark","Brigitte Bardot","Asma al-Assad","Jean-Louis Aubert"]
     };
 
     const nomToCategories = {};
@@ -107,140 +59,156 @@
     const detailsParCategorie = {};
     const idCache = new Map();
     const datesCache = new Map();
+    let rowsData = [];
 
-    const parseDate = wdDate => {
-      const iso = wdDate ? wdDate.value.time.substring(1, 11) : '';
-      if (!iso) return '';
-      const [y, m, d] = iso.split('-');
+    function chunk(a, n){const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;}
+
+    function parseDateVal(v){
+      if(!v||!v.time) return "";
+      const t = v.time.startsWith("+")? v.time.slice(1,11): v.time.slice(0,10);
+      const [y,m,d]=t.split("-");
+      if(m==="00"||d==="00") return "";
       return `${d}/${m}/${y}`;
-    };
+    }
 
-    async function chargerFichiers() {
-      for (const [categorie, noms] of Object.entries(fichiers)) {
-        scoresParCategorie[categorie] = 0;
-        detailsParCategorie[categorie] = [];
-        for (const nom of noms) {
-          if (!nomToCategories[nom]) nomToCategories[nom] = new Set();
-          nomToCategories[nom].add(categorie);
+    function ageFrom(naissance,deces){
+      if(!naissance) return "";
+      const [d1,m1,y1]=naissance.split("/");
+      const nUTC=Date.UTC(+y1, +m1-1, +d1);
+      const dUTC=deces?(()=>{const [d2,m2,y2]=deces.split("/");return Date.UTC(+y2, +m2-1, +d2);})():Date.now();
+      const dn=new Date(nUTC); const dd=new Date(dUTC);
+      let age=dd.getUTCFullYear()-dn.getUTCFullYear();
+      const bday=Date.UTC(dd.getUTCFullYear(), dn.getUTCMonth(), dn.getUTCDate());
+      if(dUTC<bday) age-=1;
+      return Number.isFinite(age)&&age>=0&&age<=150?age:"";
+    }
+
+    function preferredClaim(claims,p){
+      const arr=claims[p]; if(!arr||!arr.length) return null;
+      const c=arr.find(s=>s.rank==="preferred")||arr.find(s=>s.rank==="normal")||arr[0];
+      return c?.mainsnak?.datavalue?.value||null;
+    }
+
+    async function fetchWikidataIdsBatch(noms){
+      const unresolved=noms.filter(n=>!idCache.has(n));
+      if(!unresolved.length) return;
+      for(const part of chunk(unresolved,50)){
+        const url=`https://fr.wikipedia.org/w/api.php?action=query&format=json&origin=*&formatversion=2&redirects=1&prop=pageprops&ppprop=wikibase_item&titles=${encodeURIComponent(part.join("|"))}`;
+        const res=await fetch(url); const data=await res.json();
+        const redirects=(data?.query?.redirects||[]).reduce((m,r)=>(m.set(r.from,r.to),m),new Map());
+        const normalized=(data?.query?.normalized||[]).reduce((m,n)=>(m.set(n.from,n.to),m),new Map());
+        const map=new Map([...normalized,...redirects]);
+        const titleToId=new Map();
+        for(const p of (data?.query?.pages||[])) if(p?.title&&p?.pageprops?.wikibase_item) titleToId.set(p.title,p.pageprops.wikibase_item);
+        for(const original of part){
+          let cur=original; const seen=new Set();
+          while(map.has(cur)&&!seen.has(cur)){seen.add(cur); cur=map.get(cur);} 
+          const id=titleToId.get(cur)||titleToId.get(original);
+          if(id) idCache.set(original,id);
         }
       }
-      await traiterTous(nomToCategories);
     }
 
-    async function fetchWikidataId(nom) {
-      if (idCache.has(nom)) return idCache.get(nom);
-      const url = `https://fr.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(nom)}&prop=pageprops&format=json&origin=*`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const pages = data.query.pages;
-      for (const key in pages) {
-        if (pages[key].pageprops && pages[key].pageprops.wikibase_item) {
-          const id = pages[key].pageprops.wikibase_item;
-          idCache.set(nom, id);
-          return id;
+    async function fetchDatesBatch(ids){
+      const missing=ids.filter(id=>!datesCache.has(id));
+      if(!missing.length) return;
+      for(const part of chunk(missing,50)){
+        const url=`https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*&props=claims&ids=${part.join("|")}`;
+        const res=await fetch(url); const data=await res.json();
+        const ents=data?.entities||{};
+        for(const q of part){
+          const claims=ents[q]?.claims||{};
+          const naissance=parseDateVal(preferredClaim(claims,"P569"));
+          const deces=parseDateVal(preferredClaim(claims,"P570"));
+          datesCache.set(q,{naissance,deces});
         }
       }
-      return null;
     }
 
-    async function fetchDates(wikidataId) {
-      if (datesCache.has(wikidataId)) return datesCache.get(wikidataId);
-      const url = `https://www.wikidata.org/wiki/Special:EntityData/${wikidataId}.json`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const claims = data.entities[wikidataId].claims;
-      const naissance = claims.P569 ? parseDate(claims.P569[0].mainsnak.datavalue) : '';
-      const deces = claims.P570 ? parseDate(claims.P570[0].mainsnak.datavalue) : '';
-      const result = { naissance, deces };
-      datesCache.set(wikidataId, result);
-      return result;
-    }
-
-    function calculerAge(naissance, deces = null) {
-      const [d1, m1, y1] = naissance.split('/');
-      const n = new Date(`${y1}-${m1}-${d1}`);
-      const d = deces ? new Date(`${deces.split('/').reverse().join('-')}`) : new Date();
-      return d.getFullYear() - n.getFullYear() - (d < new Date(d.getFullYear(), n.getMonth(), n.getDate()) ? 1 : 0);
-    }
-
-    function calculerValeur(nom, age, categories, estDecede) {
-      if (!estDecede) return 0;
-      let valeur = age >= 90 ? 5 : (100 - age);
-      const nbCat = categories.size;
-      const valeurTotale = valeur + (nbCat === 1 ? 10 : 0);
-      for (const cat of categories) {
-        scoresParCategorie[cat] += valeur;
-        if (nbCat === 1) scoresParCategorie[cat] += 10;
-        detailsParCategorie[cat].push(`${nom} (${valeur}${nbCat === 1 ? ' +10' : ''})`);
+    function calculerValeur(nom,age,categories,estDecede){
+      if(!estDecede||!Number.isFinite(age)) return 0;
+      const base=age>=90?5:100-age; const solo=categories.size===1?10:0; const val=base+solo;
+      for(const cat of categories){
+        scoresParCategorie[cat]=(scoresParCategorie[cat]||0)+val;
+        (detailsParCategorie[cat]||(detailsParCategorie[cat]=[])).push(`${nom} (${base}${solo?" +10":""})`);
       }
-      return valeurTotale;
+      return val;
     }
 
-    async function traiterNom(nom, categories) {
-      const ligne = document.createElement('tr');
-      const id = await fetchWikidataId(nom);
-      if (!id) {
-        ligne.innerHTML = `<td>${nom}</td><td class="erreur">❓ ID introuvable</td><td colspan="4"></td>`;
-        return ligne;
+    function renderRows(data){
+      const tbody=document.querySelector('#resultats tbody');
+      tbody.innerHTML='';
+      const frag=document.createDocumentFragment();
+      for(const r of data){
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${r.nom}</td><td>${r.statut}</td><td>${r.naissance}</td><td>${r.deces}</td><td>${r.age===""?"":r.age}</td><td>${r.cats}</td>`;
+        frag.appendChild(tr);
       }
-
-      try {
-        const { naissance, deces } = await fetchDates(id);
-        if (!naissance) {
-          ligne.innerHTML = `<td>${nom}</td><td class="erreur">❓ Naissance manquante</td><td colspan="4"></td>`;
-        } else {
-          const age = calculerAge(naissance, deces);
-          const estDecede = !!deces;
-          calculerValeur(nom, age, categories, estDecede);
-          const statut = estDecede ? `<span class='decede'>Décédé</span>` : `<span class='vivant'>Vivant</span>`;
-          ligne.innerHTML = `
-            <td>${nom}</td>
-            <td>${statut}</td>
-            <td>${naissance}</td>
-            <td>${deces}</td>
-            <td>${age}</td>
-            <td>${Array.from(categories).join(', ')}</td>`;
-        }
-      } catch (e) {
-        ligne.innerHTML = `<td>${nom}</td><td class="erreur">⚠️ Erreur : ${e.message}</td><td colspan="4"></td>`;
-      }
-      return ligne;
+      tbody.appendChild(frag);
     }
 
-    async function traiterTous(personnes) {
-      const tbody = document.querySelector('#resultats tbody');
-      tbody.innerHTML = '';
-      const lignes = await Promise.all(
-        Object.entries(personnes).map(([nom, cats]) => traiterNom(nom, cats))
-      );
-      const fragment = document.createDocumentFragment();
-      for (const ligne of lignes) {
-        fragment.appendChild(ligne);
-      }
-      tbody.appendChild(fragment);
-      document.getElementById('overlay').classList.add('hidden');
-      afficherResume();
+    function afficherResume(){
+      const div=document.getElementById('resume');
+      div.innerHTML='';
+      const trie=Object.entries(scoresParCategorie).sort((a,b)=>b[1]-a[1]);
+      let pos=1; let last=null;
+      trie.forEach(([cat,total],i)=>{ if(total!==last) pos=i+1; const s=document.createElement('span'); s.className='resume-item'; s.title=(detailsParCategorie[cat]||[]).join('\n'); s.textContent=`${pos}ᵉ - ${cat} : ${total}`; div.appendChild(s); last=total; });
     }
 
-    function afficherResume() {
-      const div = document.getElementById('resume');
-      div.innerHTML = '';
-      const trie = Object.entries(scoresParCategorie).sort((a, b) => b[1] - a[1]);
-      let position = 1;
-      let dernierScore = null;
-      trie.forEach(([cat, total], index) => {
-        if (total !== dernierScore) position = index + 1;
-        const span = document.createElement('span');
-        span.className = 'resume-item';
-        span.title = detailsParCategorie[cat].join('\n');
-        span.textContent = `${position}ᵉ - ${cat} : ${total}`;
-        div.appendChild(span);
-        dernierScore = total;
+    function resetScores(){
+      for(const k of Object.keys(scoresParCategorie)) scoresParCategorie[k]=0;
+      for(const k of Object.keys(detailsParCategorie)) detailsParCategorie[k]=[];
+    }
+
+    function computeAndRender(){
+      resetScores();
+      for(const r of rowsData){
+        const estDecede=r.deces!==""; const ageNum=typeof r.age==='number'?r.age:NaN; calculerValeur(r.nom,ageNum,r._catsSet,estDecede);
+      }
+      renderRows(rowsData); afficherResume();
+    }
+
+    function setupSorting(){
+      const ths=[...document.querySelectorAll('#resultats thead th')];
+      let state={key:'nom',dir:1};
+      function applySort(){
+        for(const th of ths) th.classList.remove('sort-asc','sort-desc');
+        const active=ths.find(th=>th.dataset.key===state.key); if(active) active.classList.add(state.dir>0?'sort-asc':'sort-desc');
+        rowsData.sort((a,b)=>{
+          const x=a[state.key], y=b[state.key];
+          if(state.key==='age'){ const ax=(typeof x==='number')?x:-Infinity, by=(typeof y==='number')?y:-Infinity; return (ax-by)*state.dir; }
+          return String(x).localeCompare(String(y),'fr',{numeric:true,sensitivity:'base'})*state.dir;
+        });
+        computeAndRender();
+      }
+      for(const th of ths){ th.addEventListener('click',()=>{ const k=th.dataset.key; state.dir = state.key===k ? -state.dir : 1; state.key=k; applySort(); }); }
+      applySort();
+    }
+
+    async function charger(){
+      for(const [cat,noms] of Object.entries(fichiers)){
+        scoresParCategorie[cat]=0; detailsParCategorie[cat]=[];
+        for(const nom of noms){ (nomToCategories[nom]||(nomToCategories[nom]=new Set())).add(cat); }
+      }
+      const nomsUniques=Object.keys(nomToCategories);
+      await fetchWikidataIdsBatch(nomsUniques);
+      const ids=[...new Set(nomsUniques.map(n=>idCache.get(n)).filter(Boolean))];
+      await fetchDatesBatch(ids);
+      rowsData=nomsUniques.map(nom=>{
+        const id=idCache.get(nom);
+        const dates=id?datesCache.get(id):{naissance:"",deces:""};
+        const age=ageFrom(dates.naissance,dates.deces);
+        const estDecede=!!dates.deces;
+        const statut=estDecede?"<span class='decede'>Décédé</span>":"<span class='vivant'>Vivant</span>";
+        return { nom, statut, naissance:dates.naissance, deces:dates.deces, age, cats:[...nomToCategories[nom]].join(', '), _catsSet:nomToCategories[nom] };
       });
+      document.getElementById('overlay').classList.add('hidden');
+      setupSorting();
     }
 
-    chargerFichiers();
+    document.getElementById('refresh').addEventListener('click',()=>{ location.reload(); });
+
+    charger();
   </script>
 </body>
 </html>
-
